@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title></title>
+	<script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+
+	<!-- YOU NEED TO GO TO  https://developers.google.com/maps/documentation/geocoding/overview to get your key. this key will not work from your servers (I hope) -->
+	<script src="https://maps.googleapis.com/maps/api/js?key=YOURKEY" ></script>
+
+	<script type="text/javascript">
+		var geocoder = new google.maps.Geocoder;
+
+	    function geoCodeAddress(geocoder, address) {
+		  // var address = document.getElementById('geocodeAddress').value;
+		  $('.loader').show();
+
+		  geocoder.geocode({'address': address}, function(results, status) {
+		  	
+		    if (status === google.maps.GeocoderStatus.OK) {
+		    	// console.log(address)
+		      var precision = results[0].geometry.location_type;
+		      var components = results[0].address_components;
+		      var pos = {
+		        latlng: {lat:results[0].geometry.location.lat(),lng:results[0].geometry.location.lng()},
+		        lat:results[0].geometry.location.lat(),
+		        lng:results[0].geometry.location.lng()
+		      };
+		       //console.log(pos.lat);
+		       //console.log(pos.lng);
+		       
+		      geocodeFeedback(precision, pos, components);
+
+		      //IN ORDER TO DETERMINE POINT IN POLYGON (lat, long inside district), YOU WILL NEED GEO SERVICES LIKE POSTGIS, D3, OPENLAYERS, ARCGIS JS, etc... GOOGLE "Point in polygon geojson" many tools available. PostGIS is the easiest for me.
+		      identifyDistrict(pos);
+
+		    } else {
+		      //I use a backup geolocator, but it never gets called - used to see errors from time to time.
+		      //geoCodeMBAddress(address);		     
+		    }
+		  });
+		}
+
+		function geocodeFeedback(precision, pos, components){
+			//onsole.log(precision, 'location, center of ', components[0].types[0]);
+
+			//console.log(pos)
+			
+			 var message = "";
+			 var componentMap = {"street_number": "street", "postal_code": "zip code", "administrative_area_level_1": "state", "locality": "city", "administrative_area_level_2": "county", "route": "route", "intersection": "intersection", "political": "political division", "country": "country","administrative_area_level_3": "minor civil division", "administrative_area_level_4": 'minor civil division', "administrative_area_level_5": "minor civil division", "colloquial_area": "country", "neighborhood": "neighborhood", "premise": "building", "subpremise": "building", "natural_feature": "natural feature", "airport": "airport", "park": "park", "point_of_interest": "point of interest"};
+
+			if (precision == "ROOFTOP"){
+				message = "Address match! Coordinates: " + pos.lat + ', '+pos.lng;
+				$('#geocodeFeedback').html(message);
+				
+			} else {
+				message = "Approximate location! Center of " + componentMap[components[0].types[0]] + ". Coordinates: " + pos.lat + ', '+pos.lng;;
+				$('#geocodeFeedback').html(message);				
+			}		
+		}
+
+		function identifyDistrict(d){ //I am querying a county layer, you would query your inspector districts, which could be counties or some other unit.
+			// console.log(d.latlng); 
+			var data = {
+				lat: d.latlng.lat,
+				lng: d.latlng.lng
+			};
+		    $('.loader').show();
+			$.ajax("getPointData.php", {
+				 data: data,
+				success: function(result){			
+					showDistrict(result);
+				}, 
+				error: function(){
+					console.log('error');
+				}
+			});
+		}
+
+		function showDistrict(data){
+			var county = data.features[0].properties.name;
+			var message = "Located in " + county + " county";
+			$('#countyInfo').html(message);
+
+
+		}
+
+		
+
+	</script>
+</head>
+<body>
+	<div>
+		<label for="geocode">Enter Address, City, State, and Zipcode</label>
+
+	
+		<input id ="geocodeAddress" type="text"  name="geocode" aria-label="Enter Addresss" aria-describedby="searchButton">
+		<div class="input-group-append">
+			<button  type="button" id="searchButton" alt="Submit address">Search</button>
+		</div>
+	
+		<p id="geocodeFeedback"></p>
+		<p id='countyInfo'></p>
+</div> 
+
+
+
+<script type="text/javascript">
+	
+	$(function (){
+
+		$('#searchButton').on('click', function(e){
+	    	e.preventDefault();
+	    	var address = document.getElementById('geocodeAddress').value;
+	    	geoCodeAddress(geocoder,  address);
+	    })
+
+
+
+	});//end ready()
+</script>
+
+</body>
+</html>
+
+
+
